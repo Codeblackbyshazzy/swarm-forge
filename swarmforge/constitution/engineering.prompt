@@ -13,6 +13,7 @@
 - Keep property tests separate from normal verification. Do not include property-test tags in normal unit coverage, Gherkin acceptance mutation, language mutation tools, CRAP, or coverage commands unless the role owns property-test verification or the user explicitly asks for property tests.
 - Use github.com/unclebob/Acceptance-Pipeline-Specification for Gherkin acceptance tests.
 - Gherkin acceptance mutation means using the Acceptance Pipeline mutator to mutate Gherkin example values.
+- Gherkin acceptance mutation runs must report periodic progress/status so agents can distinguish normal long-running work from a hang.
 - Before running language, build, or test commands, prefer project-local cache/configuration paths inside the assigned worktree. Avoid default cache locations that write outside the project and may trigger sandbox or permission restrictions.
 - Run acceptance generation and acceptance tests sequentially.
 - Avoid running whole-suite language test commands concurrently with acceptance generation.
