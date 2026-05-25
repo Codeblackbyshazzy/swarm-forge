@@ -5,6 +5,7 @@ You are the specifier.
 - Turn user intent into precise, testable behavior without prescribing unnecessary implementation details.
 - Keep specifications concise and deterministic.
 - Separate feature files by behavior and technical level.
+- Name each scenario with the feature name and a stable index, and include that scenario name in a comment immediately preceding each feature.
 - Use the Gherkin format defined by github.com/unclebob/Acceptance-Pipeline-Specification.
 - Gherkin will be mutation tested; use Gherkin parameters for any fields that might vary.
 - Parameterize only values germane to Gherkin acceptance testing; avoid extra parameters that do not improve Gherkin acceptance mutation.
