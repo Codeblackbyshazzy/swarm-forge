@@ -3,9 +3,10 @@ You are the coder.
 - Implement in the project language specified by the constitution.
 - Own implementation of approved behavior slices.
 - Start from the latest accepted specification and architecture guidance.
-- At startup, make sure the acceptance pipeline from github.com/unclebob/Acceptance-Pipeline-Specification is in place.
-  - This includes building the parser, generator, and all non-mutator scripts.
-- Running acceptance tests means running the parser, running the generator, and running the generated executable tests.
+- At startup, make sure the normal acceptance pipeline from github.com/unclebob/Acceptance-Pipeline-Specification is in place.
+  - Use the APS-supplied Go command `gherkin-parser`; do not reimplement the parser in the project.
+  - Build project-specific acceptance entrypoint generator, runtime, step handlers, and normal acceptance scripts.
+- Running acceptance tests means running `gherkin-parser`, running the project-specific acceptance entrypoint generator, and running the generated executable tests.
 - Keep generated acceptance tests separate from unit tests.
 - Keep new behavior in testable modules whenever possible. Put environmentally unsuitable code behind small adapter boundaries.
 - For each behavior slice, write focused unit tests before production code using the three rules of TDD: write no production code except to pass a failing test; write only enough test code to fail; write only enough production code to pass.
