@@ -40,6 +40,8 @@ typeset -a WORKTREE_PATHS=()
 typeset -A ROLE_INDEX=()
 typeset -A WORKTREE_INDEX=()
 typeset -i CLEANUP_OWNER_INDEX=1
+typeset -i TMUX_WINDOW_BASE_INDEX=0
+typeset -i TMUX_PANE_BASE_INDEX=0
 typeset -i i=0
 
 check_dependency() {
@@ -47,6 +49,52 @@ check_dependency() {
     echo -e "${RED}Error:${RESET} '$1' is required but not installed."
     exit 1
   fi
+}
+
+get_tmux_option() {
+  local option="$1"
+  local scope="$2"
+  local default_value="$3"
+  local value=""
+
+  case "$scope" in
+    session)
+      value="$(tmux -S "$TMUX_SOCKET" show-options -gqv "$option" 2>/dev/null || true)"
+      ;;
+    window)
+      value="$(tmux -S "$TMUX_SOCKET" show-window-options -gqv "$option" 2>/dev/null || true)"
+      ;;
+  esac
+
+  if [[ "$value" == <-> ]]; then
+    echo "$value"
+  else
+    echo "$default_value"
+  fi
+}
+
+detect_tmux_base_indexes() {
+  local probe_session=""
+
+  mkdir -p "$TMUX_SOCKET_DIR"
+  if ! tmux -S "$TMUX_SOCKET" info >/dev/null 2>&1; then
+    probe_session="swarmforge-probe-$$"
+    tmux -S "$TMUX_SOCKET" new-session -d -s "$probe_session" "sleep 60" >/dev/null
+  fi
+
+  TMUX_WINDOW_BASE_INDEX="$(get_tmux_option base-index session 0)"
+  TMUX_PANE_BASE_INDEX="$(get_tmux_option pane-base-index window 0)"
+
+  if [[ -n "$probe_session" ]]; then
+    tmux -S "$TMUX_SOCKET" kill-session -t "$probe_session" >/dev/null 2>&1 || true
+  fi
+}
+
+tmux_agent_target() {
+  local session="$1"
+  local window="$2"
+
+  echo "${session}:${window}.${TMUX_PANE_BASE_INDEX}"
 }
 
 ensure_initial_gitignore() {
@@ -204,7 +252,7 @@ parse_config() {
     fi
 
     case "$agent" in
-      claude|codex|grok) ;;
+      claude|codex|copilot|grok) ;;
       *)
         echo -e "${RED}Error:${RESET} Unsupported agent '$agent' for role '$role'"
         exit 1
@@ -293,6 +341,14 @@ if [[ ! -f "$TMUX_SOCKET_FILE" ]]; then
   exit 1
 fi
 TMUX_SOCKET="$(< "$TMUX_SOCKET_FILE")"
+TMUX_WINDOW_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-options -gqv base-index 2>/dev/null || echo 0)"
+if [[ ! "$TMUX_WINDOW_BASE_INDEX" == <-> ]]; then
+  TMUX_WINDOW_BASE_INDEX=0
+fi
+TMUX_PANE_BASE_INDEX="$(tmux -S "$TMUX_SOCKET" show-window-options -gqv pane-base-index 2>/dev/null || echo 0)"
+if [[ ! "$TMUX_PANE_BASE_INDEX" == <-> ]]; then
+  TMUX_PANE_BASE_INDEX=0
+fi
 
 if [[ $# -lt 2 ]]; then
   echo "Usage: notify-agent.sh <target-role-or-index> \"message\"" >&2
@@ -340,11 +396,11 @@ else
   MESSAGE="$*"
 fi
 
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:0.0" -l -- "$MESSAGE"
+tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" -l -- "$MESSAGE"
 sleep 0.15
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:0.0" C-m
+tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-m
 sleep 0.05
-tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:0.0" C-j
+tmux -S "$TMUX_SOCKET" send-keys -t "${TARGET_SESSION}:${TMUX_WINDOW_BASE_INDEX}.${TMUX_PANE_BASE_INDEX}" C-j
 EOF
 
   chmod +x "$SWARM_TOOLS_DIR/notify-agent.sh"
@@ -399,6 +455,7 @@ check_backend_dependencies() {
     case "${AGENTS[$i]}" in
       claude) check_dependency claude ;;
       codex) check_dependency codex ;;
+      copilot) check_dependency copilot ;;
       grok) check_dependency grok ;;
     esac
   done
@@ -430,11 +487,11 @@ send_initial_grok_prompt() {
 
   (
     sleep 3
-    tmux -S "$TMUX_SOCKET" send-keys -t "${session}:${display}.0" -l -- "$(< "$prompt_file")"
+    tmux -S "$TMUX_SOCKET" send-keys -t "$(tmux_agent_target "$session" "$display")" -l -- "$(< "$prompt_file")"
     sleep 0.15
-    tmux -S "$TMUX_SOCKET" send-keys -t "${session}:${display}.0" C-m
+    tmux -S "$TMUX_SOCKET" send-keys -t "$(tmux_agent_target "$session" "$display")" C-m
     sleep 0.05
-    tmux -S "$TMUX_SOCKET" send-keys -t "${session}:${display}.0" C-j
+    tmux -S "$TMUX_SOCKET" send-keys -t "$(tmux_agent_target "$session" "$display")" C-j
   ) &!
 }
 
@@ -457,6 +514,9 @@ launch_role() {
     codex)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && codex -C '$role_worktree' \"\$(cat '$prompt_file')\""
       ;;
+    copilot)
+      launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && copilot -C '$role_worktree' --name 'SwarmForge ${display}' -i \"\$(cat '$prompt_file')\""
+      ;;
     grok)
       launch_cmd="export PATH='$SWARM_TOOLS_DIR:$SCRIPT_DIR':\$PATH && cd '$role_worktree' && grok --cwd '$role_worktree' --permission-mode acceptEdits --rules \"\$(cat '$prompt_file')\""
       ;;
@@ -472,7 +532,7 @@ launch_role() {
     launch_cmd+=" >/dev/null 2>&1 &!; exit \$exit_code"
   fi
 
-  tmux -S "$TMUX_SOCKET" send-keys -t "${session}:${display}.0" "$launch_cmd" Enter
+  tmux -S "$TMUX_SOCKET" send-keys -t "$(tmux_agent_target "$session" "$display")" "$launch_cmd" Enter
   if [[ "$agent" == "grok" ]]; then
     send_initial_grok_prompt "$session" "$display" "$prompt_file"
   fi
@@ -499,6 +559,7 @@ choose_cleanup_owner() {
 
 check_dependency tmux
 check_dependency git
+detect_tmux_base_indexes
 remove_nonessential_clone_files
 initialize_git_repo
 ensure_runtime_git_excludes
