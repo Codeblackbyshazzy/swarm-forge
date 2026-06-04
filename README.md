@@ -36,7 +36,7 @@ SwarmForge is a lightweight, tmux-based orchestration layer that:
 
 ## Constitution And Roles
 
-In a configuration with an `architect`, `coder`, and `reviewer`, the recommended prompt layout is:
+In the default configuration with `specifier`, `coder`, `cleaner`, `architect`, `hardender`, and `QA`, the recommended prompt layout is:
 
 ```text
 swarmforge/
@@ -46,18 +46,24 @@ swarmforge/
     project.prompt
     engineering.prompt
     workflow.prompt
-  architect.prompt
+  specifier.prompt
   coder.prompt
-  reviewer.prompt
+  cleaner.prompt
+  architect.prompt
+  hardender.prompt
+  QA.prompt
 ```
 
 `constitution.prompt` is the entry point. It can define precedence and direct agents to read subordinate constitution files in order. That lets you separate project-specific rules from engineering rules and workflow rules without forcing everything into one large prompt.
 
-The default three-agent workflow is:
+The default six-agent workflow is:
 
-- `architect` defines behavior, plans, and acceptance-level intent
+- `specifier` shapes user requests into accepted specifications
 - `coder` implements one small slice at a time and hands off completed work
-- `reviewer` performs deeper verification and quality checks before final handoff
+- `cleaner` performs behavior-preserving cleanup, coverage, CRAP, DRY, and mutation-site scans
+- `architect` reviews structure, boundaries, and dependency direction
+- `hardender` performs mutation hardening and soft Gherkin acceptance mutation
+- `QA` performs final independent verification before handing completion back to the specifier
 
 ## How It Works (High Level)
 
@@ -80,11 +86,11 @@ The default three-agent workflow is:
 window <role> <agent> <worktree>
 ```
 
-You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
+You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/<role>.prompt`, so a config containing `architect`, `coder`, `cleaner`, `research`, and `release` windows would expect:
 
 - `swarmforge/architect.prompt`
 - `swarmforge/coder.prompt`
-- `swarmforge/reviewer.prompt`
+- `swarmforge/cleaner.prompt`
 - `swarmforge/research.prompt`
 - `swarmforge/release.prompt`
 
@@ -188,16 +194,20 @@ Example config:
 ```conf
 window coordinator codex master
 window coder codex coder
-window refactorer codex refactorer
+window cleaner codex cleaner
 window architect codex architect
+window hardender codex hardender
+window QA codex QA
 ```
 
 In the example above, the agents run in these worktrees:
 
 - `coordinator` -> main working directory on `master`, and is the cleanup window because it is listed first
 - `coder` -> `.worktrees/coder`
-- `refactorer` -> `.worktrees/refactorer`
+- `cleaner` -> `.worktrees/cleaner`
 - `architect` -> `.worktrees/architect`
+- `hardender` -> `.worktrees/hardender`
+- `QA` -> `.worktrees/QA`
 
 If a window uses `master` as its worktree name, SwarmForge does not create `.worktrees/master`; that role runs in the main working directory on the `master` branch.
 
