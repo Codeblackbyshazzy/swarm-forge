@@ -127,10 +127,10 @@ Use `none` when you want SwarmForge to skip terminal automation and attach the c
 
 ### Adding A Terminal Backend
 
-Terminal backends live in `terminal-adapters/`. To add a new backend, create one file named after the backend:
+Terminal backends live in `swarmforge/terminal-adapters/`. To add a new backend, create one file named after the backend:
 
 ```text
-terminal-adapters/wezterm.sh
+swarmforge/terminal-adapters/wezterm.sh
 ```
 
 The file must define this small contract:
@@ -179,7 +179,7 @@ Then run SwarmForge with the backend name:
 SWARMFORGE_TERMINAL=wezterm ./swarm
 ```
 
-If the terminal can open sessions but cannot return stable ids for open/check/close, keep `terminal_backend_can_open_sessions` as `return 0` and set `terminal_backend_tracks_windows` to `return 1`. SwarmForge will open one surface per session and skip the watchdog for that backend. `terminal-adapters/windows-terminal.sh` is an example of this launch-only style.
+If the terminal can open sessions but cannot return stable ids for open/check/close, keep `terminal_backend_can_open_sessions` as `return 0` and set `terminal_backend_tracks_windows` to `return 1`. SwarmForge will open one surface per session and skip the watchdog for that backend. `swarmforge/terminal-adapters/windows-terminal.sh` is an example of this launch-only style.
 
 If the backend cannot open sessions at all, set both capability functions to `return 1`; SwarmForge will attach the cleanup tmux session in the current shell. Only edit `swarm-terminal-adapter.sh` when adding aliases or changing default auto-detection.
 
