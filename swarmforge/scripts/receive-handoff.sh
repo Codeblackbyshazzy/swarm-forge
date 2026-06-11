@@ -73,8 +73,10 @@ seq_num="$(handoff_sequence_number "$SEQUENCE")"
 last_file="$(handoff_last_received_file "$STREAM")"
 if [[ -f "$last_file" ]]; then
   last="$(< "$last_file")"
+  has_last=1
 else
   last=0
+  has_last=0
 fi
 if [[ ! "$last" == <-> ]]; then
   last=0
@@ -84,6 +86,10 @@ expected=$((last + 1))
 if [[ "$MESSAGE_TYPE" != "handoff" && "$MESSAGE_TYPE" != "resend-request" ]]; then
   echo "Unknown message type: $MESSAGE_TYPE" >&2
   exit 2
+fi
+
+if (( has_last == 0 )); then
+  expected="$seq_num"
 fi
 
 if (( seq_num > expected )); then
@@ -99,7 +105,6 @@ resend sequences: $missing_range
 reason: received $SEQUENCE while last processed was $(printf '%06d' "$last")
 EOF
   send-handoff.sh "$SENDER" --type resend-request --file "$request_file" --sender "$RECEIVER"
-  rm "$request_file"
   echo "DO NOT PROCESS $MESSAGE_ID; requested resend of $STREAM $missing_range"
   exit 20
 fi

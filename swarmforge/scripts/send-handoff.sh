@@ -76,6 +76,5 @@ printf '%s' "$MESSAGE" > "$ARCHIVE_FILE"
 handoff_archive_sent "$STREAM" "$SEQUENCE" "$MESSAGE"
 handoff_append_logbook "sent" "$MESSAGE" "$MESSAGE_TYPE $MESSAGE_ID sent to $TARGET"
 notify-agent.sh "$TARGET" --file "$ARCHIVE_FILE"
-rm "$ARCHIVE_FILE"
 
 echo "Sent $MESSAGE_ID"
