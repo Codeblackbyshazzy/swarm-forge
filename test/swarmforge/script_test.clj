@@ -165,6 +165,38 @@
     (is (= "2750" (str/trim (:out configured-result))))
     (is (= "1500" (str/trim (:out invalid-result))))))
 
+(deftest swarmforge-launcher-parses-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (write-file (fs/path root "swarmforge/constitution.prompt")
+                  "Read articles.\n")
+      (write-file (fs/path root "swarmforge/swarmforge.conf")
+                  (str "window coder copilot master --yolo\n"
+                       "window cleaner copilot cleaner batch --allow-all-tools\n"))
+      (write-file (fs/path root "swarmforge/roles/coder.prompt") "coder\n")
+      (write-file (fs/path root "swarmforge/roles/cleaner.prompt") "cleaner\n")
+      (let [result (run {:dir root} (script "swarmforge.bb") "--test-parse" (str root))]
+        (is (str/includes? (:out result) "coder Coder"))
+        (is (str/includes? (:out result) "task --yolo"))
+        (is (str/includes? (:out result) "batch --allow-all-tools")))
+      (finally
+        (fs/delete-tree root)))))
+
+(deftest copilot-launch-command-passes-extra-cli-args
+  (let [root (tmp-dir)]
+    (try
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-launch-command"
+                        (str root)
+                        "copilot"
+                        "--yolo")
+            command (:out result)]
+        (is (str/includes? command "copilot -C "))
+        (is (re-find #"--name 'SwarmForge Coder' --yolo -i" command)))
+      (finally
+        (fs/delete-tree root)))))
+
 (deftest grok-launch-command-passes-initial-prompt
   (let [root (tmp-dir)]
     (try

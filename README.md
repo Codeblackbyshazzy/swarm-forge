@@ -214,10 +214,17 @@ The durable handoff files and lifecycle headers replace the old logbook and rese
 `swarmforge/swarmforge.conf` defines the swarm window-by-window. Each line has this form:
 
 ```conf
-window <role> <agent> <worktree> [task|batch]
+window <role> <agent> <worktree> [task|batch] [extra-cli-args...]
 ```
 
 The optional receive mode defaults to `task`. Use `batch` for roles that should consume all currently queued equal-priority handoffs as one batch.
+
+Any fields after the receive mode are passed directly to the agent CLI as additional arguments. If you omit the receive mode, extra arguments may start at the fifth field:
+
+```conf
+window coder copilot wt-coder --yolo
+window architect claude wt-arch task --dangerously-skip-permissions
+```
 
 You can define as many windows as your project needs. Each `role` maps to a corresponding prompt file at `swarmforge/roles/<role>.prompt`, so a config containing `architect`, `coder`, `reviewer`, `research`, and `release` windows would expect:
 

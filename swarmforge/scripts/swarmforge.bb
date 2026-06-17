@@ -144,11 +144,18 @@
           (if (or (str/blank? line) (str/starts-with? line "#"))
             (recur (next lines) rows roles worktrees)
             (let [fields (str/split line #"\s+")]
-              (when (or (< (count fields) 4) (> (count fields) 5))
+              (when (< (count fields) 4)
                 (fail! (str red "Error:" reset " Invalid config line " line-no ": " line)))
-              (let [[keyword role agent worktree receive-mode] fields
+              (let [[keyword role agent worktree & trailing] fields
                     agent (str/lower-case agent)
-                    receive-mode (or receive-mode "task")]
+                    receive-mode (if (#{"task" "batch"} (first trailing))
+                                   (first trailing)
+                                   "task")
+                    extra-arg-tokens (if (#{"task" "batch"} (first trailing))
+                                       (rest trailing)
+                                       trailing)
+                    extra-args (when (seq extra-arg-tokens)
+                                 (str/join " " extra-arg-tokens))]
                 (when-not (= "window" keyword)
                   (fail! (str red "Error:" reset " Unknown config directive on line " line-no ": " keyword)))
                 (when (str/includes? role "_")
@@ -174,7 +181,8 @@
                            :display-name (display-name-for-role role)
                            :worktree-name worktree
                            :worktree-path worktree-path
-                           :receive-mode receive-mode}]
+                           :receive-mode receive-mode
+                           :extra-args extra-args}]
                   (recur (next lines)
                          (conj rows row)
                          (conj roles role)
@@ -294,6 +302,10 @@
         (str "Read swarmforge/constitution.prompt, then read every file it refers to recursively, and obey all of those instructions.\n"
              "Read swarmforge/roles/" role ".prompt, then read every file it refers to recursively, and follow all of those instructions.\n")))
 
+(defn extra-args-prefix [row]
+  (let [args (:extra-args row)]
+    (if (str/blank? args) "" (str args " "))))
+
 (defn launch-command [ctx index row]
   (let [role (:role row)
         agent (:agent row)
@@ -310,10 +322,10 @@
     (write-agent-instruction-file! role prompt-file)
     (cond-> (str base
                 (case agent
-                  "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode acceptEdits -n " (sq (str "SwarmForge " display)) " \"$(cat " (sq (str prompt-file)) ")\"")
-                  "codex" (str "codex -C " (sq (str role-worktree)) " \"$(cat " (sq (str prompt-file)) ")\"")
-                  "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " -i \"$(cat " (sq (str prompt-file)) ")\"")
-                  "grok" (str "grok --cwd " (sq (str role-worktree)) " --permission-mode acceptEdits --rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
+                  "claude" (str "claude --append-system-prompt-file " (sq (str prompt-file)) " --permission-mode acceptEdits -n " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
+                  "codex" (str "codex -C " (sq (str role-worktree)) " " (extra-args-prefix row) "\"$(cat " (sq (str prompt-file)) ")\"")
+                  "copilot" (str "copilot -C " (sq (str role-worktree)) " --name " (sq (str "SwarmForge " display)) " " (extra-args-prefix row) "-i \"$(cat " (sq (str prompt-file)) ")\"")
+                  "grok" (str "grok --cwd " (sq (str role-worktree)) " --permission-mode acceptEdits " (extra-args-prefix row) "--rules \"$(cat " (sq (str prompt-file)) ")\" --verbatim \"$(cat " (sq (str prompt-file)) ")\"")))
       (= index 0)
       (str "; exit_code=$?; SWARMFORGE_TERMINAL_BACKEND=" (sq (:terminal-backend ctx))
            " nohup " (sq (str (fs/path (:script-dir ctx) "swarm-cleanup.sh")))
@@ -444,7 +456,9 @@
   (let [ctx (prepare-ctx (context root))]
     (prepare-workspace! ctx)
     (doseq [row (:roles ctx)]
-      (println (str (:role row) " " (:display-name row) " " (:worktree-path row) " " (:receive-mode row))))
+      (println (str (:role row) " " (:display-name row) " " (:worktree-path row) " "
+                    (:receive-mode row)
+                    (when-let [extra (:extra-args row)] (str " " extra)))))
     (print (slurp (str (:roles-file ctx))))
     (print (slurp (str (:sessions-file ctx))))))
 
@@ -506,7 +520,7 @@
                                         :tmux-socket-dir (str (fs/parent (fs/path tmux-socket)))})]
     (println (:tmux-window-base-index ctx) (:tmux-pane-base-index ctx))))
 
-(defn test-launch-command! [root agent]
+(defn test-launch-command! [root agent & [extra-args]]
   (let [ctx (assoc (context root) :terminal-backend "none")
         row {:role "coder"
              :agent agent
@@ -514,7 +528,8 @@
              :display-name "Coder"
              :worktree-name "master"
              :worktree-path (fs/path root)
-             :receive-mode "task"}]
+             :receive-mode "task"
+             :extra-args extra-args}]
     (fs/create-dirs (:prompts-dir ctx))
     (println (launch-command ctx 1 row))))
 
@@ -522,7 +537,9 @@
   (case (first args)
     "--test-parse" (test-parse! (or (second args) (System/getProperty "user.dir")))
     "--test-terminal-bridge" (test-terminal-bridge! (or (second args) (System/getProperty "user.dir")) (nth args 2))
-    "--test-launch-command" (test-launch-command! (or (second args) (System/getProperty "user.dir")) (nth args 2))
+    "--test-launch-command" (apply test-launch-command!
+                                     (or (second args) (System/getProperty "user.dir"))
+                                     (drop 2 args))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
     "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
