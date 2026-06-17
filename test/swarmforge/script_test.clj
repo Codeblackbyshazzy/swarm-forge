@@ -200,6 +200,22 @@
       (finally
         (fs/delete-tree root)))))
 
+(deftest swarmforge-detects-nonzero-pane-base-index
+  (let [root (tmp-dir)
+        sock (str root "/test.sock")
+        conf (fs/path root "tmux.conf")]
+    (try
+      (write-file conf "set -g base-index 1\nset -g pane-base-index 1\n")
+      (run {:dir root} "tmux" "-S" sock "-f" (str conf) "new-session" "-d" "-s" "probe" "sleep" "120")
+      (let [result (run {:dir root}
+                        (script "swarmforge.bb")
+                        "--test-tmux-base-indexes"
+                        sock)]
+        (is (= "1 1" (str/trim (:out result)))))
+      (finally
+        (run {:dir root :ok? false} "tmux" "-S" sock "kill-server")
+        (fs/delete-tree root)))))
+
 (deftest swarm-cleanup-tolerates-missing-runtime-state
   (let [root (tmp-dir)
         ids-file (fs/path root ".swarmforge/window-ids")]

@@ -77,7 +77,7 @@
 (defn tmux-option [tmux-socket option scope default-value]
   (let [args (case scope
                :session ["tmux" "-S" tmux-socket "show-options" "-gqv" option]
-               :window ["tmux" "-S" tmux-socket "show-window-options" "-gqv" option])
+               :window ["tmux" "-S" tmux-socket "show-options" "-gwqv" option])
         result (apply process/sh (concat [{:continue true}] args))
         value (str/trim (:out result))]
     (if (re-matches #"[0-9]+" value)
@@ -501,6 +501,11 @@
               (fs/exists? local-script-dir) (assoc :script-dir local-script-dir))]
     (println (terminal-call-out ctx "terminal_open_session" "swarmforge-specifier" "SwarmForge Specifier" ""))))
 
+(defn test-tmux-base-indexes! [tmux-socket]
+  (let [ctx (detect-tmux-base-indexes {:tmux-socket tmux-socket
+                                        :tmux-socket-dir (str (fs/parent (fs/path tmux-socket)))})]
+    (println (:tmux-window-base-index ctx) (:tmux-pane-base-index ctx))))
+
 (defn test-launch-command! [root agent]
   (let [ctx (assoc (context root) :terminal-backend "none")
         row {:role "coder"
@@ -519,6 +524,7 @@
     "--test-terminal-bridge" (test-terminal-bridge! (or (second args) (System/getProperty "user.dir")) (nth args 2))
     "--test-launch-command" (test-launch-command! (or (second args) (System/getProperty "user.dir")) (nth args 2))
     "--test-agent-start-delay" (println (env-long "SWARMFORGE_AGENT_START_DELAY_MS" 1500))
+    "--test-tmux-base-indexes" (test-tmux-base-indexes! (second args))
     (run-main! (or (first args) (System/getProperty "user.dir")))))
 
 (apply -main *command-line-args*)
