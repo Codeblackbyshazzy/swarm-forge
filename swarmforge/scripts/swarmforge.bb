@@ -222,7 +222,8 @@
    "done_with_current_task.sh" "done_with_current_task.bb"
    "ready_for_next_batch.sh" "ready_for_next_batch.bb"
    "done_with_current_batch.sh" "done_with_current_batch.bb"
-   "handoffd.bb" "swarm-cleanup.sh" "swarm-window-watchdog.sh" "swarm-window-watchdog.bb"
+   "handoffd.bb" "stop_handoff_daemon.bb" "stop_handoff_daemon.sh"
+   "swarm-cleanup.sh" "swarm-window-watchdog.sh" "swarm-window-watchdog.bb"
    "swarm-terminal-adapter.sh" "swarmforge.sh" "swarmforge.bb"])
 
 (def terminal-helpers
@@ -345,11 +346,9 @@
     (println (str "  " cyan "[" display "]" reset " started in session " session))))
 
 (defn stop-handoff-daemon! [ctx]
-  (let [pid-file (fs/path (:daemon-dir ctx) "handoffd.pid")]
-    (when (fs/exists? pid-file)
-      (let [pid (str/trim (slurp (str pid-file)))]
-        (when (re-matches #"[0-9]+" pid)
-          (process/sh {:continue true} "kill" "-TERM" pid))))))
+  (process/sh {:continue true}
+              "bb" (str (fs/path (:script-dir ctx) "stop_handoff_daemon.bb"))
+              (str (:working-dir ctx))))
 
 (defn start-handoff-daemon! [ctx]
   (fs/delete-if-exists (fs/path (:daemon-dir ctx) "stop"))
